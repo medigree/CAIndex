@@ -49,30 +49,40 @@ function getDescription(c, a) {
 
 /* ── Continuous color gradient: human (light) → AI (deep blue) ── */
 
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const a = s * Math.min(l, 1 - l);
-  const f = n => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
 
 function getColors(c, a) {
-  const human = 1 - getScore(c, a); // 1 = fully human, 0 = fully AI
-  const h = Math.round(185 + human * 5);
-  const s = Math.round(12 + human * 38);
-  const l = Math.round(97 - human * 32);
-  const borderL = Math.max(0, l - 10);
+  const aHuman = 1 - a / 4; // 1 at A0, 0 at A4
+
+  // C axis = hue: warm top (C0, human) → teal bottom (C3, AI conception)
+  // A axis = saturation: vivid left (A0, human) → pale right (A4, AI authorship)
+  const warm = [220, 120, 90];
+  const teal = [42, 175, 160];
+  const white = [245, 247, 250];
+
+  // Blend hue along C: C0 = warm, C3 = teal
+  const cRatio = c / 3;
+  const baseR = warm[0] + (teal[0] - warm[0]) * cRatio;
+  const baseG = warm[1] + (teal[1] - warm[1]) * cRatio;
+  const baseB = warm[2] + (teal[2] - warm[2]) * cRatio;
+
+  // Fade toward white along A: A0 = full color, A4 = still has some color
+  const intensity = 0.12 + aHuman * 0.43;
+  const r = Math.round(white[0] + (baseR - white[0]) * intensity);
+  const g = Math.round(white[1] + (baseG - white[1]) * intensity);
+  const b = Math.round(white[2] + (baseB - white[2]) * intensity);
+
+  const bg = `rgb(${r}, ${g}, ${b})`;
+  const bgHex = `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+  const br = Math.max(0, r - 20), bg2 = Math.max(0, g - 20), bb = Math.max(0, b - 20);
+  const borderHex = `#${br.toString(16).padStart(2,"0")}${bg2.toString(16).padStart(2,"0")}${bb.toString(16).padStart(2,"0")}`;
+
   return {
-    bg: `hsl(${h}, ${s}%, ${l}%)`,
+    bg,
     text: "#1a2a3a",
-    border: `hsl(${h}, ${s}%, ${borderL}%)`,
-    bgHex: hslToHex(h, s, l),
+    border: `rgb(${br}, ${bg2}, ${bb})`,
+    bgHex,
     textHex: "#1a2a3a",
-    borderHex: hslToHex(h, s, borderL),
+    borderHex,
   };
 }
 
@@ -86,7 +96,7 @@ function generateHTMLBadge(c, a, siteUrl, float) {
   const { bgHex, textHex, borderHex } = getColors(c, a);
   const id = `__aib_${c}${a}`;
   const tipId = `${id}_tip`;
-  const linkUrl = siteUrl || "https://medigree.github.io/ca";
+  const linkUrl = siteUrl || "https://medigree.github.io/CAIndex";
   const linkHref = `${linkUrl}?c=${c}&a=${a}`;
 
   const floatStyle = float
@@ -148,19 +158,19 @@ function generateMarkdown(c, a, siteUrl) {
 
 /* ── UI components ── */
 
-function SegControl({ value, onChange, options, axisLabel }) {
+function SegControl({ value, onChange, options, axisLetter, axisName, axisColor, gradient }) {
   return (
     <div style={{ marginBottom: "1.25rem" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "8px" }}>
         <span style={{
-          fontFamily: "var(--font-mono)", fontSize: "11px", fontWeight: "500",
-          color: "var(--color-text-primary)", background: "var(--color-background-secondary)",
-          padding: "2px 8px", borderRadius: "var(--border-radius-md)",
-          border: "0.5px solid var(--color-border-tertiary)", whiteSpace: "nowrap",
-        }}>{axisLabel}</span>
+          fontSize: "14px", whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontWeight: "700", color: axisColor, fontSize: "16px" }}>{axisLetter}</span>
+          <span style={{ color: "var(--color-text-secondary)", fontWeight: "400" }}>{axisName}</span>
+        </span>
         <span style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>{options[value].name}</span>
       </div>
-      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "6px" }}>
+      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
         {options.map((opt, i) => (
           <button key={i} onClick={() => onChange(i)} style={{
             padding: "5px 11px", fontSize: "12px", fontFamily: "var(--font-mono)",
@@ -170,6 +180,15 @@ function SegControl({ value, onChange, options, axisLabel }) {
             borderRadius: "var(--border-radius-md)", cursor: "pointer", transition: "all 0.12s",
           }}>{opt.code}</button>
         ))}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+        <span style={{ fontSize: "9px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>{gradient.left}</span>
+        <div style={{
+          flex: 1, height: "4px", borderRadius: "2px",
+          background: gradient.css,
+          border: "0.5px solid var(--color-border-tertiary)",
+        }} />
+        <span style={{ fontSize: "9px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>{gradient.right}</span>
       </div>
       <p style={{ fontSize: "12px", color: "var(--color-text-tertiary)", margin: 0, lineHeight: "1.5" }}>
         {options[value].desc}
@@ -207,7 +226,7 @@ function Grid({ c, a, onSelect }) {
       </div>
       {[0, 1, 2, 3].map(cy => (
         <div key={cy} style={{ display: "flex", gap: "3px", marginBottom: "3px", alignItems: "center" }}>
-          <div style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "var(--color-text-tertiary)", width: "22px", textAlign: "right", paddingRight: "4px", flexShrink: 0 }}>
+          <div style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "#D4776B", width: "22px", textAlign: "right", paddingRight: "4px", flexShrink: 0 }}>
             C{cy}
           </div>
           {[0, 1, 2, 3, 4].map(ax => {
@@ -218,11 +237,11 @@ function Grid({ c, a, onSelect }) {
                 title={`C${cy}:A${ax}: ${getLabelInfo(cy, ax).label} — ${getHumanPct(cy, ax)}% human`}
                 style={{
                   flex: 1, height: "28px", minWidth: 0,
-                  background: active ? "var(--color-text-primary)" : cellBg,
+                  background: cellBg,
                   borderRadius: "3px", cursor: "pointer",
-                  border: `0.5px solid ${active ? "transparent" : "var(--color-border-tertiary)"}`,
-                  outline: active ? "2px solid var(--color-text-primary)" : "none",
-                  outlineOffset: "1px", transition: "all 0.1s",
+                  border: "0.5px solid var(--color-border-tertiary)",
+                  boxShadow: active ? "inset 0 0 0 2.5px var(--color-text-primary)" : "none",
+                  transition: "all 0.1s",
                 }}
               />
             );
@@ -231,19 +250,10 @@ function Grid({ c, a, onSelect }) {
       ))}
       <div style={{ display: "flex", gap: "3px", paddingLeft: "22px" }}>
         {[0, 1, 2, 3, 4].map(ax => (
-          <div key={ax} style={{ flex: 1, fontSize: "10px", fontFamily: "var(--font-mono)", color: "var(--color-text-tertiary)", textAlign: "center", minWidth: 0 }}>
+          <div key={ax} style={{ flex: 1, fontSize: "10px", fontFamily: "var(--font-mono)", color: "#2A9D8F", textAlign: "center", minWidth: 0 }}>
             A{ax}
           </div>
         ))}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", paddingLeft: "22px" }}>
-        <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Human</span>
-        <div style={{
-          flex: 1, height: "8px", borderRadius: "4px",
-          background: "linear-gradient(to right, hsl(190,50%,65%), hsl(185,12%,97%))",
-          border: "0.5px solid var(--color-border-tertiary)",
-        }} />
-        <span style={{ fontSize: "10px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>AI</span>
       </div>
     </div>
   );
@@ -294,7 +304,7 @@ function SelfBadge() {
             <span style={{ color: "#94A3B8", fontSize: "10px" }}> — </span>
             <span style={{ color: "#CBD5E1", fontSize: "10px" }}>{A_DEFS[sa].name}. {A_DEFS[sa].desc}</span>
           </div>
-          <a href="https://medigree.github.io/ca" target="_blank" rel="noopener" style={{ color: "#7DD3FC", fontSize: "10px", textDecoration: "none" }}>
+          <a href="https://medigree.github.io/CAIndex" target="_blank" rel="noopener" style={{ color: "#7DD3FC", fontSize: "10px", textDecoration: "none" }}>
             Get badge {"\u2192"}
           </a>
         </div>
@@ -369,25 +379,27 @@ export default function App() {
       </div>
 
       <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: "var(--border-radius-lg)", padding: "1.25rem 1.25rem 0.75rem" }}>
-        <SegControl value={c} onChange={setC} options={C_DEFS} axisLabel="C — Conception" />
-        <SegControl value={a} onChange={setA} options={A_DEFS} axisLabel="A — Authorship" />
+        <SegControl value={c} onChange={setC} options={C_DEFS} axisLetter="C" axisName="onception" axisColor="#D4776B"
+          gradient={{ left: "Human", right: "AI", css: "linear-gradient(to right, rgb(220,120,90), rgb(42,175,160))" }} />
+        <SegControl value={a} onChange={setA} options={A_DEFS} axisLetter="A" axisName="uthorship" axisColor="#2A9D8F"
+          gradient={{ left: "Human", right: "AI", css: "linear-gradient(to right, rgb(220,120,90), rgb(235,240,245))" }} />
       </div>
 
       <div style={{ marginTop: "1rem", background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: "var(--border-radius-lg)", padding: "1.25rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+        <Grid c={c} a={a} onSelect={(nc, na) => { setC(nc); setA(na); }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "1.25rem", marginBottom: "0.5rem" }}>
           <Badge c={c} a={a} size="lg" />
           <span style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>{desc}</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "1.25rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "11px", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Human participation</span>
           <div style={{ flex: 1, height: "6px", background: "var(--color-background-secondary)", borderRadius: "3px", overflow: "hidden" }}>
             <div style={{ width: `${humanPct}%`, height: "100%", background: getColors(c, a).bg, borderRadius: "3px", transition: "width 0.2s" }} />
           </div>
           <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>{humanPct}%</span>
         </div>
-
-        <Grid c={c} a={a} onSelect={(nc, na) => { setC(nc); setA(na); }} />
       </div>
 
       <div style={{ marginTop: "1rem", background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: "var(--border-radius-lg)", padding: "1.25rem" }}>
@@ -495,12 +507,12 @@ export default function App() {
         {showHow && (
           <div style={{ padding: "0 16px 16px", borderTop: "0.5px solid var(--color-border-tertiary)" }}>
             <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", lineHeight: "1.7", marginTop: "14px" }}>
-              The label uses two independent dimensions. <strong style={{ fontWeight: "500", color: "var(--color-text-primary)" }}>C (Conception)</strong> captures who originated the ideas and structure. <strong style={{ fontWeight: "500", color: "var(--color-text-primary)" }}>A (Authorship)</strong> captures who produced the actual words. The darker the badge, the more human involvement. A piece can be C0:A2 (your ideas, AI-drafted) or C1:A0 (AI-organized outline, your prose).
+              The label uses two independent dimensions. <strong style={{ fontWeight: "600", color: "#D4776B" }}>C</strong><strong style={{ fontWeight: "500", color: "var(--color-text-primary)" }}>onception</strong> captures who originated the ideas and structure. <strong style={{ fontWeight: "600", color: "#2A9D8F" }}>A</strong><strong style={{ fontWeight: "500", color: "var(--color-text-primary)" }}>uthorship</strong> captures who produced the actual words. The darker the badge, the more human involvement. A piece can be C0:A2 (your ideas, AI-drafted) or C1:A0 (AI-organized outline, your prose).
             </p>
 
             <div style={{ marginTop: "1rem" }}>
-              <div style={{ fontSize: "11px", color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "8px" }}>
-                C — Conception scale (0–3)
+              <div style={{ fontSize: "11px", letterSpacing: "0.07em", marginBottom: "8px" }}>
+                <span style={{ color: "#D4776B", fontWeight: "600" }}>C</span><span style={{ color: "var(--color-text-tertiary)", textTransform: "uppercase" }}>onception (0–3)</span>
               </div>
               {C_DEFS.map(d => (
                 <div key={d.code} style={{ display: "flex", gap: "10px", marginBottom: "7px", alignItems: "flex-start" }}>
@@ -515,8 +527,8 @@ export default function App() {
             </div>
 
             <div style={{ marginTop: "1rem" }}>
-              <div style={{ fontSize: "11px", color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "8px" }}>
-                A — Authorship scale (0–4)
+              <div style={{ fontSize: "11px", letterSpacing: "0.07em", marginBottom: "8px" }}>
+                <span style={{ color: "#2A9D8F", fontWeight: "600" }}>A</span><span style={{ color: "var(--color-text-tertiary)", textTransform: "uppercase" }}>uthorship (0–4)</span>
               </div>
               {A_DEFS.map(d => (
                 <div key={d.code} style={{ display: "flex", gap: "10px", marginBottom: "7px", alignItems: "flex-start" }}>
