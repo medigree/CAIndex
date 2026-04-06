@@ -21,6 +21,7 @@ const EXAMPLES = [
   { c: 1, a: 1, note: "Outline shaped in ChatGPT, text written by you" },
   { c: 0, a: 2, note: "Your concept; you gave a brief and refined the AI draft" },
   { c: 2, a: 3, note: "AI brainstormed the angles; you selected and edited" },
+  { c: 3, a: 0, note: "AI conceived the idea; you wrote every word yourself" },
   { c: 3, a: 4, note: "Fully AI-produced report, minimal human review" },
 ];
 
